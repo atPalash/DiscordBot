@@ -41,9 +41,9 @@ class DiscordListener:
                     if message.author == DiscordListener._client.user:
                         return
 
-                    if message.channel.name == DiscordListener._channel_name:
+                    if message.channel.name == DiscordListener._channel_name or "clear" in message.system_content:
                         # await message.channel.send("lets do some query")
-                        await DiscordListener.parse_msg(message.system_content)
+                        await DiscordListener.parse_msg(message)
 
             else:
                 raise Exception("Must not create multiple Discord listener")
@@ -74,25 +74,42 @@ class DiscordListener:
         DiscordListener._route_methods[route] = method
 
     @staticmethod
-    async def __call_route(route: str, data):
+    async def __call_route(route: str, *args):
         try:
-            res = DiscordListener._route_methods[route](data)
-            await DiscordListener._channel.send("response: " + res)
+            if route == "clear":
+                await DiscordListener.clear(*args)
+                return
+            res = DiscordListener._route_methods[route](*args)
+            await DiscordListener._channel.send(f"response:\n {res}")
         except Exception as e:
             await DiscordListener._channel.send(f"This route is not available error {str(e)}")
             raise
 
     @staticmethod
-    async def parse_msg(message: str):
+    async def parse_msg(message):
         """
         Message are in format of <command>:<data>
         """
         try:
-            msg = message.replace(" ", "")
+            msg = message.system_content.replace(" ", "")
             msg = msg.split(":")
-            await DiscordListener.__call_route(msg[0], msg[1])
+
+            if len(msg) != 2:
+                await DiscordListener._channel.send(f"Error in query, it should be <query>:<data>")
+                return
+            await DiscordListener.__call_route(msg[0], msg[1], message)
         except Exception as e:
             await DiscordListener._channel.send(f"Check your query format error {str(e)}")
+            raise
+
+    @staticmethod
+    async def clear(*args):
+        try:
+            channel = args[1].channel
+            limit = int(args[0])
+            await channel.purge(limit=limit)
+            await channel.send(f"deleted previous {limit} messages")
+        except Exception as e:
             raise
 
 
