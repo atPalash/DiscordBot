@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import function
-
+import platform
 import discord
 
 
@@ -31,7 +31,7 @@ class DiscordListener:
                     DiscordListener._ready = True
                     channels = DiscordListener._client.get_all_channels()
                     DiscordListener._channel = [ch for ch in channels if ch.name == channel_name][0]
-                    await DiscordListener._channel.send("Discord listener ready")
+                    await DiscordListener._channel.send(f"{platform.system()}: Discord listener ready")
 
                 @DiscordListener._client.event
                 async def on_message(message):
