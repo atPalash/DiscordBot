@@ -3,7 +3,7 @@ import threading
 import function
 import platform
 import discord
-
+from discord_messenger import DiscordMessenger
 
 class DiscordListener:
     """
@@ -114,16 +114,22 @@ class DiscordListener:
 
 
 if __name__ == "__main__":
-    from utility.reader import read_config
-    from pathlib import Path
+    # from pathlib import Path
+    # import sys
+    # module_path = Path("utility").resolve(strict=True).as_posix()
 
-    conf_folder = Path("../../conf")
-    discord_config = conf_folder / "discord.yml"
-    discord_config = discord_config.resolve(strict=True).as_posix()
-    discord_config = read_config(discord_config)
+    # # append this submodule to sys path
+    # sys.path.append(module_path)
+    # from reader import read_config
+    # from pathlib import Path
 
-    DiscordListener.initialise("query", discord_config['bot']['token'])
+    # conf_folder = Path("conf")
+    # discord_config = conf_folder / "discord.yml"
+    # discord_config = discord_config.resolve(strict=True).as_posix()
+    # discord_config = read_config(discord_config)
 
+    # DiscordListener.initialise("query", discord_config['listener']['bot']['token'])
+    # DiscordListener.run()
 
     # def hello(data):
     #     res = f"Hello from discord you said {data}"
