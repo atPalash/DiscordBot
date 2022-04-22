@@ -113,7 +113,7 @@ class DiscordListener:
             raise
 
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
     # from pathlib import Path
     # import sys
     # module_path = Path("utility").resolve(strict=True).as_posix()
