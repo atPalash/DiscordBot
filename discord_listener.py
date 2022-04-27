@@ -80,7 +80,8 @@ class DiscordListener:
                 await DiscordListener.clear(*args)
                 return
             res = DiscordListener._route_methods[route](*args)
-            await DiscordListener._channel.send(f"response:\n {res}")
+            for embed in res:
+                await DiscordListener._channel.send(embed=embed)
         except Exception as e:
             await DiscordListener._channel.send(f"This route is not available error {str(e)}")
             raise
