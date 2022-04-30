@@ -79,7 +79,7 @@ class DiscordListener:
             if route == "clear":
                 await DiscordListener.clear(*args)
                 return
-            res = DiscordListener._route_methods[route](*args)
+            res = DiscordListener._route_methods[route](args[0])
             for embed in res:
                 await DiscordListener._channel.send(embed=embed)
         except Exception as e:
@@ -92,13 +92,12 @@ class DiscordListener:
         Message are in format of <command>:<data>
         """
         try:
-            msg = message.system_content.replace(" ", "")
-            msg = msg.split(":")
+            msg = message.system_content.lower().strip().split(":")
 
             if len(msg) != 2:
                 await DiscordListener._channel.send(f"Error in query, it should be <query>:<data>")
                 return
-            await DiscordListener.__call_route(msg[0], msg[1], message)
+            await DiscordListener.__call_route(msg[0].strip(), msg[1].strip(), message)
         except Exception as e:
             await DiscordListener._channel.send(f"Check your query format error {str(e)}")
             raise
