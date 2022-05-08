@@ -5,6 +5,7 @@ import platform
 import discord
 from discord_messenger import DiscordMessenger
 
+
 class DiscordListener:
     """
     Create only one Discord Listener
@@ -19,26 +20,31 @@ class DiscordListener:
     _route_methods = {}
 
     @staticmethod
-    def initialise(channel_name: str, token: str):
+    def initialise(listener_config: dict):
         try:
             if DiscordListener._client is None:
-                DiscordListener._channel_name = channel_name
-                DiscordListener._token = token
+                DiscordListener._channel_name = list(listener_config['webhook'].items())[0][0]
+                DiscordListener._token = list(listener_config['bot'].items())[0][1]
                 DiscordListener._client = discord.Client()
+
+                # Listener runs in separate thread need to initialise Discord messenger with listener config
+                DiscordMessenger.initialise(listener_config['webhook'])
 
                 @DiscordListener._client.event
                 async def on_ready():
                     DiscordListener._ready = True
                     channels = DiscordListener._client.get_all_channels()
-                    DiscordListener._channel = [ch for ch in channels if ch.name == channel_name][0]
-                    await DiscordListener._channel.send(f"{platform.system()}: Discord listener ready")
+                    DiscordListener._channel = [ch for ch in channels if ch.name == DiscordListener._channel_name][0]
+                    DiscordMessenger.send_message(channel=DiscordListener._channel_name,
+                                                  msg=f"{platform.system()}: Discord listener ready",
+                                                  title="Listener info")
 
                 @DiscordListener._client.event
                 async def on_message(message):
                     if not DiscordListener._ready:
                         return
 
-                    if message.author == DiscordListener._client.user:
+                    if message.author == DiscordListener._client.user or message.system_content == "":
                         return
 
                     if message.channel.name == DiscordListener._channel_name or "clear" in message.system_content:
@@ -79,11 +85,13 @@ class DiscordListener:
             if route == "clear":
                 await DiscordListener.clear(*args)
                 return
-            res = DiscordListener._route_methods[route](args[0])
-            for embed in res:
-                await DiscordListener._channel.send(embed=embed)
+            route = DiscordListener._route_methods[route]
+            res = route(args[0])
+            DiscordMessenger.send_message(channel=DiscordListener._channel_name, msg=res, title=route.__name__)
         except Exception as e:
-            await DiscordListener._channel.send(f"This route is not available error {str(e)}")
+            DiscordMessenger.send_message(channel=DiscordListener._channel_name,
+                                          msg=f"This route is not available error {str(e)}",
+                                          title=type(e).__name__)
             raise
 
     @staticmethod
@@ -99,7 +107,9 @@ class DiscordListener:
                 return
             await DiscordListener.__call_route(msg[0].strip(), msg[1].strip(), message)
         except Exception as e:
-            await DiscordListener._channel.send(f"Check your query format error {str(e)}")
+            await DiscordMessenger.send_message(channel=DiscordListener._channel_name,
+                                                msg=f"Check your query format error {str(e)}",
+                                                title=type(e).__name__)
             raise
 
     @staticmethod
