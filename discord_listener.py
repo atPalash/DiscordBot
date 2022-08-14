@@ -4,98 +4,100 @@ import function
 import platform
 import discord
 from discord_messenger import DiscordMessenger
+from utility.singleton import Singleton
 
 
-class DiscordListener:
+class DiscordListener(metaclass=Singleton):
     """
     Create only one Discord Listener
     """
-    _token = ""
-    _channel_name = ""
-    _channel = None
-    _client = None
-    _loop = None
-    _thread = None
-    _ready = False
-    _route_methods = {}
 
-    @staticmethod
-    def initialise(listener_config: dict):
+    def __init__(self, discord_config: dict):
+        self.token = ""
+        self.channel_name = ""
+        self.channel = None
+        self.client = None
+        self.loop = None
+        self.thread = None
+        self.ready = False
+        self.route_methods = {}
+        self.discord_messenger = None
         try:
-            if DiscordListener._client is None:
-                DiscordListener._channel_name = list(listener_config['webhook'].items())[0][0]
-                DiscordListener._token = list(listener_config['bot'].items())[0][1]
-                DiscordListener._client = discord.Client()
+            self.channel_name = list(discord_config['listener']['webhook'].items())[0][0]
+            self.token = list(discord_config['listener']['bot'].items())[0][1]
+            self.client = discord.Client()
 
-                # Listener runs in separate thread need to initialise Discord messenger with listener config
-                DiscordMessenger.initialise(listener_config['webhook'])
+            # Listener runs in separate thread need to initialise Discord messenger with listener config
+            self.discord_messenger = DiscordMessenger(discord_config['messenger']['webhook'])
 
-                @DiscordListener._client.event
-                async def on_ready():
-                    DiscordListener._ready = True
-                    channels = DiscordListener._client.get_all_channels()
-                    DiscordListener._channel = [ch for ch in channels if ch.name == DiscordListener._channel_name][0]
-                    DiscordMessenger.send_message(channel=DiscordListener._channel_name,
-                                                  msg=f"{platform.system()}: Discord listener ready",
-                                                  title="Listener info")
+            @self.client.event
+            async def on_ready():
+                self.ready = True
+                channels = self.client.get_all_channels()
+                self.channel = [ch for ch in channels if ch.name == self.channel_name][0]
+                self.discord_messenger.send_message(channel=self.channel_name,
+                                                    msg=f"{platform.system()}: Discord listener ready",
+                                                    title="Listener info")
 
-                @DiscordListener._client.event
-                async def on_message(message):
-                    if not DiscordListener._ready:
-                        return
+            @self.client.event
+            async def on_message(message):
+                if not self.ready:
+                    return
 
-                    if message.author == DiscordListener._client.user or message.system_content == "":
-                        return
+                if message.author == self.client.user or message.system_content == "":
+                    return
 
-                    if message.channel.name == DiscordListener._channel_name or "clear" in message.system_content:
-                        # await message.channel.send("lets do some query")
-                        await DiscordListener.parse_msg(message)
+                if message.channel.name == self.channel_name or "clear" in message.system_content:
+                    # await message.channel.send("lets do some query")
+                    await self.__parse_msg(message)
+            
+            self.__run()
+        except Exception as e:
+            raise
 
+    def __del__(self):
+        self.stop()
+
+    def stop(self):
+        """
+        Call stop to stop the loop properly.
+        """
+        try:
+            self.loop.stop()
+        except Exception as e:
+            raise
+
+    def add_route(self, route: str, method: function):
+        self.route_methods[route] = method
+
+    def __run(self):
+        try:
+            if self.loop is None:
+                self.loop = asyncio.get_event_loop()
+                self.loop.create_task(self.client.start(self.token))
+                self.thread = threading.Thread(target=self.loop.run_forever).start()
             else:
-                raise Exception("Must not create multiple Discord listener")
+                self.discord_messenger.send_message(channel=self.channel_name, msg="No need to run another instance "
+                                                                                    "of discord listener",
+                                                    title="Info")
         except Exception as e:
             raise
 
-    @staticmethod
-    def run():
-        try:
-            if DiscordListener._loop is None:
-                DiscordListener._loop = asyncio.get_event_loop()
-                DiscordListener._loop.create_task(DiscordListener._client.start(DiscordListener._token))
-                DiscordListener._thread = threading.Thread(target=DiscordListener._loop.run_forever).start()
-            else:
-                raise Exception("should not run multiple event listener loops")
-        except Exception as e:
-            raise
-
-    @staticmethod
-    def stop():
-        try:
-            DiscordListener._loop.stop()
-        except Exception as e:
-            raise
-
-    @staticmethod
-    def add_route(route: str, method: function):
-        DiscordListener._route_methods[route] = method
-
-    @staticmethod
-    async def __call_route(route: str, *args):
+    async def __call_route(self, route: str, *args):
         try:
             if route == "clear":
-                await DiscordListener.clear(*args)
+                await self.clear(*args)
                 return
-            route = DiscordListener._route_methods[route]
+            route = self.route_methods[route]
             res = route(args[0])
-            DiscordMessenger.send_message(channel=DiscordListener._channel_name, msg=res, title=route.__name__)
+            self.discord_messenger.send_message(channel=self.channel_name, msg=res, title=route.__name__)
         except Exception as e:
-            DiscordMessenger.send_message(channel=DiscordListener._channel_name,
-                                          msg=f"This route is not available error {str(e)}",
-                                          title=type(e).__name__)
+            self.discord_messenger.send_message(channel=self.channel_name,
+                                                msg=f"This route is not available error {str(e)}",
+                                                title=type(e).__name__)
             raise
 
-    @staticmethod
-    async def parse_msg(message):
+    async def __parse_msg(self, message):
         """
         Message are in format of <command>:<data>
         """
@@ -103,16 +105,15 @@ class DiscordListener:
             msg = message.system_content.lower().strip().split(":")
 
             if len(msg) != 2:
-                await DiscordListener._channel.send(f"Error in query, it should be <query>:<data>")
+                await self.channel.send(f"Error in query, it should be <query>:<data>")
                 return
-            await DiscordListener.__call_route(msg[0].strip(), msg[1].strip(), message)
+            await self.__call_route(msg[0].strip(), msg[1].strip())
         except Exception as e:
-            await DiscordMessenger.send_message(channel=DiscordListener._channel_name,
-                                                msg=f"Check your query format error {str(e)}",
-                                                title=type(e).__name__)
+            await self.discord_messenger.send_message(channel=self.channel_name,
+                                                      msg=f"Check your query format error {str(e)}",
+                                                      title=type(e).__name__)
             raise
 
-    @staticmethod
     async def clear(*args):
         try:
             channel = args[1].channel
@@ -121,37 +122,3 @@ class DiscordListener:
             await channel.send(f"deleted previous {limit} messages")
         except Exception as e:
             raise
-
-
-#if __name__ == "__main__":
-    # from pathlib import Path
-    # import sys
-    # module_path = Path("utility").resolve(strict=True).as_posix()
-
-    # # append this submodule to sys path
-    # sys.path.append(module_path)
-    # from reader import read_config
-    # from pathlib import Path
-
-    # conf_folder = Path("conf")
-    # discord_config = conf_folder / "discord.yml"
-    # discord_config = discord_config.resolve(strict=True).as_posix()
-    # discord_config = read_config(discord_config)
-
-    # DiscordListener.initialise("query", discord_config['listener']['bot']['token'])
-    # DiscordListener.run()
-
-    # def hello(data):
-    #     res = f"Hello from discord you said {data}"
-    #     return res
-    #
-    # def add(data):
-    #     val = data.split(",")
-    #     val1 = float(val[0])
-    #     val2 = float(val[1])
-    #     res = val1 + val2
-    #     return str(res)
-
-    # DiscordListener.add_route("hello", hello)
-    # DiscordListener.add_route("add", add)
-    # DiscordListener.run()
