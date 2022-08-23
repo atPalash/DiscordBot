@@ -56,9 +56,10 @@ class DiscordListener(metaclass=Singleton):
             raise
 
     def __del__(self):
-        self.stop()
+        self.__stop()
+        exit(0)
 
-    def stop(self):
+    def __stop(self):
         """
         Call stop to stop the loop properly.
         """
@@ -103,8 +104,11 @@ class DiscordListener(metaclass=Singleton):
         """
         try:
             msg = message.system_content.lower().strip().split(":")
-
-            if len(msg) != 2:
+            if len(msg) == 1 and msg[0] == 'stop':
+                await self.channel.send(f"Stopping discord listener")
+                self.__del__()
+                return
+            elif len(msg) != 2:
                 await self.channel.send(f"Error in query, it should be <query>:<data>")
                 return
             await self.__call_route(msg[0].strip(), msg[1].strip())
