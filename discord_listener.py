@@ -59,6 +59,18 @@ class DiscordListener(metaclass=Singleton):
         self.__stop()
         exit(0)
 
+    def add_route(self, route: str, method: function):
+        self.route_methods[route] = method
+
+    async def clear(*args):
+        try:
+            channel = args[1].channel
+            limit = int(args[0])
+            await channel.purge(limit=limit)
+            await channel.send(f"deleted previous {limit} messages")
+        except Exception as e:
+            raise
+
     def __stop(self):
         """
         Call stop to stop the loop properly.
@@ -67,9 +79,6 @@ class DiscordListener(metaclass=Singleton):
             self.loop.stop()
         except Exception as e:
             raise
-
-    def add_route(self, route: str, method: function):
-        self.route_methods[route] = method
 
     def __run(self):
         try:
@@ -116,13 +125,4 @@ class DiscordListener(metaclass=Singleton):
             await self.discord_messenger.send_message(channel=self.channel_name,
                                                       msg=f"Check your query format error {str(e)}",
                                                       title=type(e).__name__)
-            raise
-
-    async def clear(*args):
-        try:
-            channel = args[1].channel
-            limit = int(args[0])
-            await channel.purge(limit=limit)
-            await channel.send(f"deleted previous {limit} messages")
-        except Exception as e:
             raise
