@@ -1,6 +1,6 @@
 import discord
 
-from utility.singleton import Singleton
+from singleton import Singleton
 
 
 class DiscordMessengerConfig:
